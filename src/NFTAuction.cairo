@@ -1,14 +1,29 @@
+use starknet::ContractAddress;
+
+
+#[starknet::interface]
+pub trait IAuction<TContractState> {
+    fn initialize(ref self: TContractState, duration: u64);
+    fn place_bid(ref self: TContractState, bid_amount: u64);
+    fn end_auction(ref self: TContractState);
+    fn get_highest_bidder(self: @TContractState) -> ContractAddress;
+    fn get_highest_bid(self: @TContractState) -> u64;
+    fn get_auction_end(self: @TContractState) -> u64;
+}
+
 #[starknet::contract]
 mod AuctionContract {
+    use starknet::storage::StoragePointerReadAccess;
+    use starknet::storage::StoragePointerWriteAccess;
     use starknet::get_caller_address;
     use starknet::ContractAddress;
-    use starknet::Uint256;
+
 
     #[storage]
     struct Storage {
-        highest_bid: u256,
+        highest_bid: u64,
         highest_bidder: ContractAddress,
-        auction_end: u256,
+        auction_end: u64,
     }
 
     #[event]
@@ -21,25 +36,26 @@ mod AuctionContract {
     #[derive(Drop, starknet::Event)]
     struct NewHighestBid {
         bidder: ContractAddress,
-        bid_amount: u256,
+        bid_amount: u64,
     }
 
     #[derive(Drop, starknet::Event)]
     struct AuctionEnded {
         winner: ContractAddress,
-        winning_bid: u256,
+        winning_bid: u64,
     }
 
-    #[external(v0)]
+    #[abi(embed_v0)]
     impl AuctionImpl of super::IAuction<ContractState> {
-        fn initialize(ref self: ContractState, duration: u256) {
+        fn initialize(ref self: ContractState, duration: u64) {
             let now = starknet::get_block_timestamp();
+
             self.auction_end.write(now + duration);
             self.highest_bid.write(0); // Initial bid
-            self.highest_bidder.write(ContractAddress::zero()); // No bidder at the start
+            // self.highest_bidder.write(Zeroable::zero());
         }
 
-        fn place_bid(ref self: ContractState, bid_amount: u256) {
+        fn place_bid(ref self: ContractState, bid_amount: u64) {
             let caller = get_caller_address();
             let current_highest_bid = self.highest_bid.read();
 
@@ -58,6 +74,7 @@ mod AuctionContract {
             self.emit(Event::NewHighestBid(NewHighestBid { bidder: caller, bid_amount, }));
         }
 
+
         fn end_auction(ref self: ContractState) {
             let now = starknet::get_block_timestamp();
             assert(now >= self.auction_end.read(), 'Auction still ongoing');
@@ -72,22 +89,12 @@ mod AuctionContract {
             self.highest_bidder.read()
         }
 
-        fn get_highest_bid(self: @ContractState) -> u256 {
+        fn get_highest_bid(self: @ContractState) -> u64 {
             self.highest_bid.read()
         }
 
-        fn get_auction_end(self: @ContractState) -> u256 {
+        fn get_auction_end(self: @ContractState) -> u64 {
             self.auction_end.read()
         }
-    }
-
-    #[starknet::interface]
-    trait IAuction<TContractState> {
-        fn initialize(self: TContractState, duration: u256);
-        fn place_bid(self: TContractState, bid_amount: u256);
-        fn end_auction(self: TContractState);
-        fn get_highest_bidder(self: @TContractState) -> ContractAddress;
-        fn get_highest_bid(self: @TContractState) -> u256;
-        fn get_auction_end(self: @TContractState) -> u256;
     }
 }
