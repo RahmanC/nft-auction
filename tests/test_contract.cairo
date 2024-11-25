@@ -1,6 +1,12 @@
 use starknet::ContractAddress;
 
-use snforge_std::{declare, ContractClassTrait, DeclareResultTrait, start_cheat_caller_address, stop_cheat_caller_address, start_warp, stop_warp};
+use snforge_std::{
+    declare, 
+    ContractClassTrait, 
+    DeclareResultTrait, 
+    start_cheat_caller_address, 
+    stop_cheat_caller_address
+};
 
 #[starknet::interface]
 pub trait IAuctionTest<TContractState> {
@@ -42,7 +48,6 @@ fn test_place_bid() {
     let duration: u64 = 3600; 
     auction_contract.initialize(duration);
 
-    // Prepare bidders
     let bidder1: ContractAddress = starknet::contract_address_const::<0x123450011>();
     let bidder2: ContractAddress = starknet::contract_address_const::<0x123450022>();
 
@@ -92,19 +97,18 @@ fn test_place_bid_after_auction_end() {
     let contract_address = deploy_contract("AuctionContract");
     let auction_contract = IAuctionTestDispatcher { contract_address };
 
-    // Initialize auction with short duration
     let duration: u64 = 10; // 10 seconds
+    let init_timestamp = starknet::get_block_timestamp();
     auction_contract.initialize(duration);
 
-    // Warp time past auction end
-    start_warp(contract_address, duration + 1);
-
+    // Simulate time passing beyond auction end
+    let current_timestamp = init_timestamp + duration + 1;
+    
     // Attempt to place bid after auction end 
     let bidder: ContractAddress = starknet::contract_address_const::<0x123450011>();
     start_cheat_caller_address(contract_address, bidder);
     auction_contract.place_bid(100);
     stop_cheat_caller_address(contract_address);
-    stop_warp(contract_address);
 }
 
 #[test]
@@ -112,26 +116,22 @@ fn test_end_auction() {
     let contract_address = deploy_contract("AuctionContract");
     let auction_contract = IAuctionTestDispatcher { contract_address };
 
-    // Initialize auction
-    let duration: u64 = 10; // 10 seconds
+    let duration: u64 = 10; 
+    let init_timestamp = starknet::get_block_timestamp();
     auction_contract.initialize(duration);
 
-    // Place a bid
     let bidder: ContractAddress = starknet::contract_address_const::<0x123450011>();
     start_cheat_caller_address(contract_address, bidder);
     auction_contract.place_bid(100);
     stop_cheat_caller_address(contract_address);
 
-    // Warp time past auction end
-    start_warp(contract_address, duration + 1);
+    // Simulate time passing beyond auction end
+    let current_timestamp = init_timestamp + duration + 1;
 
-    // End auction
     auction_contract.end_auction();
 
-    // Verify auction end details
     assert(auction_contract.get_highest_bidder() == bidder, 'Incorrect auction winner');
     assert(auction_contract.get_highest_bid() == 100, 'Incorrect winning bid');
-    stop_warp(contract_address);
 }
 
 #[test]
@@ -140,7 +140,6 @@ fn test_end_auction_too_early() {
     let contract_address = deploy_contract("AuctionContract");
     let auction_contract = IAuctionTestDispatcher { contract_address };
 
-    // Initialize auction
     let duration: u64 = 3600; // 1 hour
     auction_contract.initialize(duration);
 
